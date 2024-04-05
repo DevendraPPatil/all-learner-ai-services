@@ -1693,20 +1693,28 @@ export class ScoresController {
         // Store Array to DB
         let data = await this.scoresService.create(createScoreData);
 
-
         function getTokenHexcode(token: string) {
           let result = tokenHexcodeDataArr.find(item => item.token === token);
           return result?.hexcode || '';
         }
       }
-
+      // Cal the subsessionWise and content_id wise target.
       let targets = await this.scoresService.getTargetsBysubSession(CreateLearnerProfileDto.sub_session_id, CreateLearnerProfileDto.contentType, CreateLearnerProfileDto.language);
       let familiarity = await this.scoresService.getFamiliarityBysubSession(CreateLearnerProfileDto.sub_session_id, CreateLearnerProfileDto.contentType, CreateLearnerProfileDto.language);
 
+      let targetsByContent  = await this.scoresService.getTargetsByContentId(CreateLearnerProfileDto.sub_session_id, CreateLearnerProfileDto.contentType, CreateLearnerProfileDto.language, CreateLearnerProfileDto.contentId);
+      let familiarityByContent = await this.scoresService.getFamiliarityByContentId(CreateLearnerProfileDto.sub_session_id, CreateLearnerProfileDto.contentType, CreateLearnerProfileDto.language, CreateLearnerProfileDto.contentId);
+    
       let totalTargets = targets.length;
+      let totalContentTargets = targetsByContent.length;
+      
       let totalFamiliarity = familiarity.length;
       let totalSyllables = totalTargets + totalFamiliarity;
       let targetsPercentage = Math.floor((totalTargets / totalSyllables) * 100);
+      
+      let totalFamiliarityByContent = familiarityByContent.length;
+      let totalSyllablesBycontent =  totalContentTargets + totalFamiliarityByContent;
+      let targetsPercentageByContent = Math.floor((totalContentTargets / totalSyllablesBycontent) * 100);
 
       return response.status(HttpStatus.CREATED).send({
         status: 'success',
@@ -1714,9 +1722,7 @@ export class ScoresController {
         responseText: responseText,
         createScoreData: createScoreData,
         totalTargets: totalTargets,
-        totalFamiliarity: totalFamiliarity,
-        totalSyllables: totalSyllables,
-        targetsPercentage: targetsPercentage,
+        totalContentTarget : totalContentTargets,
 
       });
 
@@ -2499,14 +2505,17 @@ export class ScoresController {
   async getSetResult(@Res() response: FastifyReply, @Body() getSetResult: any) {
     try {
       let milestoneEntry = true;
+      let targetPer = await this.scoresService.calculateTargetResult(getSetResult.sub_session_id, getSetResult.contentType, getSetResult.language);
       let targets = await this.scoresService.getTargetsBysubSession(getSetResult.sub_session_id, getSetResult.contentType, getSetResult.language);
       let fluency = await this.scoresService.getFluencyBysubSession(getSetResult.sub_session_id, getSetResult.language);
       let familiarity = await this.scoresService.getFamiliarityBysubSession(getSetResult.sub_session_id, getSetResult.contentType, getSetResult.language);
-
+      console.log("targetPer-----", targetPer);
       let totalTargets = targets.length;
       let totalFamiliarity = familiarity.length;
       let totalSyllables = totalTargets + totalFamiliarity;
-      let targetsPercentage = Math.floor((totalTargets / totalSyllables) * 100);
+     // let targetsPercentage = Math.floor((totalTargets / totalSyllables) * 100);
+      let targetsPercentage: any =  targetPer;
+      console.log("targetsPercentage----", targetsPercentage);
       let passingPercentage = Math.floor(100 - targetsPercentage);
 
       let sessionResult = 'No Result';

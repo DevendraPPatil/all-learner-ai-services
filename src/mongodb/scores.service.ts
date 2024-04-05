@@ -373,6 +373,174 @@ export class ScoresService {
     return RecordData.sort((a, b) => a.score - b.score);
   }
 
+  async getTargetsByContentId(subSessionId: string, contentType: string, language: string, contentId: string) {
+    let threshold = 0.90;
+
+    if (contentType != null && contentType.toLowerCase() === 'word') {
+      threshold = 0.75
+    }
+
+    const RecordData = await this.scoreModel.aggregate([
+      {
+        $unwind: '$sessions'
+      },
+      {
+        $match: {
+          'sessions.sub_session_id': subSessionId,
+          'sessions.language': language,
+          'sessions.contentId': contentId
+        }
+      },
+      {
+        $facet: {
+          confidenceScores: [
+            {
+              $unwind: '$sessions.confidence_scores'
+            },
+            {
+              $project: {
+                _id: 0,
+                user_id: 1,
+                date: '$sessions.createdAt',
+                session_id: '$sessions.session_id',
+                character: '$sessions.confidence_scores.token',
+                score: '$sessions.confidence_scores.confidence_score',
+              }
+            },
+            {
+              $sort: {
+                date: -1
+              }
+            }
+          ],
+          missingTokenScores: [
+            {
+              $unwind: '$sessions.missing_token_scores'
+            },
+            {
+              $project: {
+                _id: 0,
+                user_id: 1,
+                session_id: '$sessions.session_id',
+                date: '$sessions.createdAt',
+                character: '$sessions.missing_token_scores.token',
+                score: '$sessions.missing_token_scores.confidence_score'
+              }
+            },
+            {
+              $sort: {
+                date: -1
+              }
+            }
+          ]
+        }
+      },
+      {
+        $project: {
+          combinedResults: {
+            $concatArrays: ['$confidenceScores', '$missingTokenScores']
+          }
+        }
+      },
+      {
+        $unwind: '$combinedResults'
+      },
+      {
+        $replaceRoot: {
+          newRoot: '$combinedResults'
+        }
+      },
+      {
+        $project: {
+          user_id: "$user_id",
+          sessionId: '$session_id',
+          date: '$date',
+          token: '$character',
+          score: '$score'
+        }
+      },
+      {
+        $sort: {
+          date: -1
+        }
+      },
+      {
+        $group: {
+          _id: {
+            token: "$token",
+            userId: "$user_id",
+            sessionId: "$sessionId"
+          },
+          meanScore: { $avg: "$score" }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          user_id: "$_id.userId",
+          session_id: "$_id.sessionId",
+          character: "$_id.token",
+          score: "$meanScore"
+        }
+      },
+      {
+        $match: {
+          'score': { $lt: threshold }
+        }
+      },
+      {
+        $sort: {
+          score: 1
+        }
+      }
+    ]);
+
+    return RecordData.sort((a, b) => a.score - b.score);
+  }
+
+  async calculateTargetResult(subSessionId: string, contentType: string, language: string) {
+    const contentIdsAggregate = await this.scoreModel.aggregate([
+      {
+        $unwind: '$sessions'
+      },
+      {
+        $match: {
+          'sessions.sub_session_id': subSessionId
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          contentId: '$sessions.contentId'
+        }
+      },
+      {
+        $group: {
+          _id: 0,
+          contentIds: { $addToSet: '$contentId' }
+        }
+      }
+    ]);
+    const contentIds = contentIdsAggregate.length > 0 ? contentIdsAggregate[0].contentIds : [];
+
+    let totalTargetsPercentage = 0;
+
+    for (const contentId of contentIds) {
+      const targets = await this.getTargetsByContentId(subSessionId, contentType, language, contentId);
+      const familiarity = await this.getFamiliarityByContentId(subSessionId, contentType, language, contentId);
+
+      const totalTargets = targets.length;
+      const totalFamiliarity = familiarity.length;
+      const totalSyllables = totalTargets + totalFamiliarity;
+
+      // Calculate targetsPercentage
+      const targetsPercentage = Math.floor((totalTargets / totalSyllables) * 100);
+      totalTargetsPercentage += targetsPercentage;
+    }
+    let finalTargetsPercentage = totalTargetsPercentage / 5;
+    return finalTargetsPercentage;
+  }
+
   async getTargetsByUser(userId: string, language: string = null) {
     const threshold = 0.90;
 
@@ -572,6 +740,132 @@ export class ScoresService {
         $match: {
           'sessions.sub_session_id': subSessionId,
           'sessions.language': language
+        }
+      },
+      {
+        $facet: {
+          confidenceScores: [
+            {
+              $unwind: '$sessions.confidence_scores'
+            },
+            {
+              $project: {
+                _id: 0,
+                user_id: 1,
+                date: '$sessions.createdAt',
+                session_id: '$sessions.session_id',
+                character: '$sessions.confidence_scores.token',
+                score: '$sessions.confidence_scores.confidence_score',
+              }
+            },
+            {
+              $sort: {
+                date: -1
+              }
+            }
+          ],
+          missingTokenScores: [
+            {
+              $unwind: '$sessions.missing_token_scores'
+            },
+            {
+              $project: {
+                _id: 0,
+                user_id: 1,
+                session_id: '$sessions.session_id',
+                date: '$sessions.createdAt',
+                character: '$sessions.missing_token_scores.token',
+                score: '$sessions.missing_token_scores.confidence_score'
+              }
+            },
+            {
+              $sort: {
+                date: -1
+              }
+            }
+          ]
+        }
+      },
+      {
+        $project: {
+          combinedResults: {
+            $concatArrays: ['$confidenceScores', '$missingTokenScores']
+          }
+        }
+      },
+      {
+        $unwind: '$combinedResults'
+      },
+      {
+        $replaceRoot: {
+          newRoot: '$combinedResults'
+        }
+      },
+      {
+        $project: {
+          user_id: "$user_id",
+          sessionId: '$session_id',
+          date: '$date',
+          token: '$character',
+          score: '$score'
+        }
+      },
+      {
+        $sort: {
+          date: -1
+        }
+      },
+      {
+        $group: {
+          _id: {
+            token: "$token",
+            userId: "$user_id",
+            sessionId: "$sessionId"
+          },
+          meanScore: { $avg: "$score" }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          user_id: "$_id.userId",
+          session_id: "$_id.sessionId",
+          character: "$_id.token",
+          score: "$meanScore"
+        }
+      },
+      {
+        $match: {
+          'score': { $gte: threshold }
+        }
+      },
+      {
+        $sort: {
+          score: 1
+        }
+      }
+    ]);
+
+    return RecordData.sort((a, b) => a.score - b.score);
+  }
+
+
+  async getFamiliarityByContentId(subSessionId: string, contentType: string, language: string, contentId: string) {
+    let threshold = 0.90;
+
+    if (contentType != null && contentType.toLowerCase() === 'word') {
+      threshold = 0.75
+    }
+
+    const RecordData = await this.scoreModel.aggregate([
+      {
+        $unwind: '$sessions'
+      },
+      {
+        $match: {
+          'sessions.sub_session_id': subSessionId,
+          'sessions.language': language,
+          'sessions.contentId': contentId
         }
       },
       {
