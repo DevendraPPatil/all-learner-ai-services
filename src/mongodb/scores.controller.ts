@@ -1723,6 +1723,8 @@ export class ScoresController {
         createScoreData: createScoreData,
         totalTargets: totalTargets,
         totalContentTarget : totalContentTargets,
+        targetsPercentage : targetsPercentage,
+        targetsPercentageByContent: targetsPercentageByContent
 
       });
 
