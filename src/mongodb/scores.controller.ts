@@ -1362,7 +1362,7 @@ export class ScoresController {
         CreateLearnerProfileDto.sub_session_id,
         CreateLearnerProfileDto.language,
       );
-      
+
       return response.status(HttpStatus.CREATED).send({
         status: 'success',
         msg: 'Successfully stored data to learner profile',
@@ -1503,10 +1503,10 @@ export class ScoresController {
         // Get All hexcode for this selected language
         const tokenHexcodeDataArr = await this.scoresService.gethexcodeMapping(language);
         responseText = await this.scoresService.processText(CreateLearnerProfileDto.output[0].source);
-      
-        if(CreateLearnerProfileDto.ans_key && CreateLearnerProfileDto.ans_key.length >0 &&  DenoisedresponseText.length>0) {
-          comprehension = await this.scoresService.getComprehensionFromLLM(CreateLearnerProfileDto.question_text,DenoisedresponseText,CreateLearnerProfileDto.ans_key[0]);
-          
+
+        if (CreateLearnerProfileDto.ans_key && CreateLearnerProfileDto.ans_key.length > 0 && DenoisedresponseText.length > 0) {
+          comprehension = await this.scoresService.getComprehensionFromLLM(CreateLearnerProfileDto.question_text, DenoisedresponseText, CreateLearnerProfileDto.ans_key[0]);
+
           let createLlmOutputLog = {
             user_id: CreateLearnerProfileDto.user_id,
             session_id: CreateLearnerProfileDto.session_id,
@@ -1520,16 +1520,16 @@ export class ScoresController {
             grammar: comprehension.grammar,
             accuracy: comprehension.accuracy,
             overall: comprehension.overall,
-           
+
           }
           await this.scoresService.addLlmOutputLog(createLlmOutputLog);
         }
 
         let textEvalMatrices;
 
-        if (CreateLearnerProfileDto['contentType'].toLowerCase() === 'word' && CreateLearnerProfileDto.hallucination_alternative && 
-        Array.isArray(CreateLearnerProfileDto.hallucination_alternative) && 
-        CreateLearnerProfileDto.hallucination_alternative.length > 0){
+        if (CreateLearnerProfileDto['contentType'].toLowerCase() === 'word' && CreateLearnerProfileDto.hallucination_alternative &&
+          Array.isArray(CreateLearnerProfileDto.hallucination_alternative) &&
+          CreateLearnerProfileDto.hallucination_alternative.length > 0) {
 
           function checkResponseTextAnomaly(responseText: string): boolean {
             const phrasesToCheck = ["thank you", "and", "yes"];
@@ -1553,7 +1553,7 @@ export class ScoresController {
             return similarityScore >= similarityThreshold;
           }
 
-          if(await checkResponseTextAnomaly(responseText) || await checkHallucinationAlternatives(responseText, CreateLearnerProfileDto.hallucination_alternative) || await checkConstructTextSimilarity(responseText)){
+          if (await checkResponseTextAnomaly(responseText) || await checkHallucinationAlternatives(responseText, CreateLearnerProfileDto.hallucination_alternative) || await checkConstructTextSimilarity(responseText)) {
             responseText = originalText;
           }
         }
@@ -1638,7 +1638,7 @@ export class ScoresController {
         // Add check for the correct choice
 
         if (is_correct_choice !== undefined && is_correct_choice !== null) {
-         
+
           // calculation for the correct choice final score 
           let similarityDenoised = similarityDenoisedText * 100
           let key_word = CreateLearnerProfileDto.correctness['50%']
@@ -1660,7 +1660,7 @@ export class ScoresController {
             sub_session_id: CreateLearnerProfileDto.sub_session_id || '', // used to club set recorded data within session
             contentType: CreateLearnerProfileDto.contentType, // contentType could be Char, Word, Sentence and Paragraph
             contentId: CreateLearnerProfileDto.contentId || '', // contentId of original text content shown to user to speak
-            comprehension:comprehension, // Response from LLM for mechanics
+            comprehension: comprehension, // Response from LLM for mechanics
             createdAt: createdAt,
             language: language, // content language
             original_text: originalText, // content text shown to speak
@@ -1701,7 +1701,7 @@ export class ScoresController {
               count: pause_count,
             },
             reptitionsCount: reptitionCount,
-            mechanics_id : CreateLearnerProfileDto.mechanics_id || "",
+            mechanics_id: CreateLearnerProfileDto.mechanics_id || "",
             asrOutput: JSON.stringify(CreateLearnerProfileDto.output),
             isRetry: false,
           },
@@ -1728,7 +1728,7 @@ export class ScoresController {
         CreateLearnerProfileDto.sub_session_id,
         CreateLearnerProfileDto.language,
       );
-    
+
       return response.status(HttpStatus.CREATED).send({
         status: 'success',
         msg: 'Successfully stored data to learner profile',
@@ -3191,8 +3191,8 @@ export class ScoresController {
         "cLevel": contentLevel,
         "complexityLevel": complexityLevel,
         "graphemesMappedObj": graphemesMappedObj,
-        "mechanics_id":mechanics_id,
-        "level_competency" : level_competency || [],
+        "mechanics_id": mechanics_id,
+        "level_competency": level_competency || [],
         "story_mode": story_mode || false
       };
 
@@ -3467,14 +3467,26 @@ export class ScoresController {
       let targetPerThreshold = 30;
       let milestoneEntry = true;
       let totalSyllables = 0;
+      let originalTextSyllables = [];
+      let is_mechanics = getSetResult.is_mechanics;
+      let overallScore, isComprehension;
+      let sessionResult = 'No Result';
+
+      console.log()
       let targets = await this.scoresService.getTargetsBysubSession(getSetResult.sub_session_id, getSetResult.language);
       let fluency = await this.scoresService.getFluencyBysubSession(getSetResult.sub_session_id, getSetResult.language);
       let familiarity = await this.scoresService.getFamiliarityBysubSession(getSetResult.sub_session_id, getSetResult.language);
       let correct_score = await this.scoresService.getCorrectnessBysubSession(getSetResult.sub_session_id, getSetResult.language);
-      let originalTextSyllables = [];
-      let is_mechanics = getSetResult.is_mechanics;
-      let overallScore,isComprehension;
-     
+      ({ overallScore, isComprehension } = await this.scoresService.getComprehensionScore(getSetResult.sub_session_id, getSetResult.language));
+
+      if (is_mechanics && isComprehension) {
+        if (overallScore >= 14) {
+          sessionResult = 'pass';
+        } else {
+          sessionResult = 'fail';
+        }
+      }
+
       if (getSetResult.language != 'en') {
         originalTextSyllables = await this.scoresService.getSubsessionOriginalTextSyllables(getSetResult.sub_session_id);
         targets = targets.filter((targetsEle) => { return originalTextSyllables.includes(targetsEle.character) });
@@ -3500,8 +3512,6 @@ export class ScoresController {
       targetsPercentage = targetsPercentage < 0 ? 0 : targetsPercentage;
       passingPercentage = passingPercentage < 0 ? 0 : passingPercentage;
 
-      let sessionResult = 'No Result';
-
       let recordData: any = await this.scoresService.getlatestmilestone(
         getSetResult.user_id,
         getSetResult.language,
@@ -3521,48 +3531,40 @@ export class ScoresController {
       } else if (totalSyllables > 500) {
         targetPerThreshold = 5;
       }
-      
-      if (targetsPercentage <= targetPerThreshold) {
-        // Add logic for the study the pic mechnics
-        if (is_mechanics) {
-          ({ overallScore, isComprehension } = await this.scoresService.getComprehensionScore(getSetResult.sub_session_id, getSetResult.language));
-          let correctness_score = correct_score[0]?.count_scores_gte_50 ?? 0;
-          if(isComprehension) {
-            if (overallScore >= 14) {
+      if (!isComprehension) {
+        if (targetsPercentage <= targetPerThreshold) {
+          // Add logic for the study the pic mechnics
+          if (is_mechanics) {
+            let correctness_score = correct_score[0]?.count_scores_gte_50 ?? 0;
+
+            if (correctness_score >= 3) {
               sessionResult = 'pass';
-            }else {
+            } else {
               sessionResult = 'fail';
             }
           }
-          else {
-          if (correctness_score >= 3) {
-            sessionResult = 'pass';
-          } else {
-            sessionResult = 'fail';
+          else if (getSetResult.contentType.toLowerCase() === 'word') {
+            if (fluency < 2) {
+              sessionResult = 'pass';
+            } else {
+              sessionResult = 'fail';
+            }
+          } else if (getSetResult.contentType.toLowerCase() === 'sentence') {
+            if (fluency < 6) {
+              sessionResult = 'pass';
+            } else {
+              sessionResult = 'fail';
+            }
+          } else if (getSetResult.contentType.toLowerCase() === 'paragraph') {
+            if (fluency < 10) {
+              sessionResult = 'pass';
+            } else {
+              sessionResult = 'fail';
+            }
           }
-          }
+        } else {
+          sessionResult = 'fail';
         }
-        else if (getSetResult.contentType.toLowerCase() === 'word') {
-          if (fluency < 2) {
-            sessionResult = 'pass';
-          } else {
-            sessionResult = 'fail';
-          }
-        } else if (getSetResult.contentType.toLowerCase() === 'sentence') {
-          if (fluency < 6) {
-            sessionResult = 'pass';
-          } else {
-            sessionResult = 'fail';
-          }
-        } else if (getSetResult.contentType.toLowerCase() === 'paragraph') {
-          if (fluency < 10) {
-            sessionResult = 'pass';
-          } else {
-            sessionResult = 'fail';
-          }
-        }
-      } else {
-        sessionResult = 'fail';
       }
 
       let milestone_level = previous_level;
@@ -3574,18 +3576,18 @@ export class ScoresController {
         getSetResult?.collectionId === undefined
       ) {
         let previous_level_id = previous_level === undefined ? 0 : parseInt(previous_level.replace("m", ""));
-        
+
         if (sessionResult === 'pass') {
           if (getSetResult.language === en_config.language_code && previous_level_id >= en_config.max_milestone_level) {
             milestone_level = en_config.max_milestone_level;
           } else if (getSetResult.language === ta_config.language_code && previous_level_id >= ta_config.max_milestone_level) {
             milestone_level = "m" + ta_config.max_milestone_level;
           } else if (getSetResult.language != en_config.language_code && previous_level_id >= ta_config.max_milestone_level) {
-            milestone_level = ta_config.max_milestone_level; 
+            milestone_level = ta_config.max_milestone_level;
           } else {
             milestone_level = 'm' + (previous_level_id + 1);
           }
-          
+
         }
       } else {
         if (
@@ -3896,15 +3898,14 @@ export class ScoresController {
         status: 'success',
         data: {
           sessionResult: sessionResult,
-          totalTargets: totalTargets,
+          totalTargets: totalTargets || 0,
           currentLevel: currentLevel,
           previous_level: previous_level,
-          targetsCount: totalTargets,
           totalSyllables: totalSyllables,
           fluency: fluency,
           percentage: passingPercentage || 0,
           targetsPercentage: targetsPercentage || 0,
-          comprehensionScore : overallScore
+          comprehensionScore: overallScore
         },
       });
     } catch (err) {
@@ -4455,7 +4456,7 @@ export class ScoresController {
 
       return response.status(HttpStatus.OK).send({
         status: 'success',
-        result : updateResult.modifiedCount,
+        result: updateResult.modifiedCount,
         message: 'Milestone updated successfully',
       });
     } catch (err) {
@@ -4465,5 +4466,5 @@ export class ScoresController {
       });
     }
   }
-  
+
 }
