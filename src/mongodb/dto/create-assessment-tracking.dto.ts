@@ -21,6 +21,50 @@ export class CreateAssessmentTrackingDto {
   @IsOptional()
   createdOn?: Date;
 
+  @ApiPropertyOptional({
+    type: () => String,
+    description: 'Session Id',
+  })
+  @Expose()
+  @IsOptional()
+  @IsString()
+  session_id?: string;
+
+  @ApiPropertyOptional({
+    type: () => String,
+    description: 'Sub Session Id',
+  })
+  @Expose()
+  @IsOptional()
+  @IsString()
+  sub_session_id?: string;
+
+  @ApiPropertyOptional({
+    type: () => String,
+    description: 'Sub Milestone Level',
+  })
+  @Expose()
+  @IsOptional()
+  @IsString()
+  sub_milestone_level?: string;
+
+  @ApiPropertyOptional({
+    type: () => String,
+    description: 'Apply Level',
+  })
+  @Expose()
+  @IsOptional()
+  @IsString()
+  apply_level?: string;
+
+  @ApiPropertyOptional({
+    type: () => Number,
+    description: 'Sub Apply Level',
+  })
+  @Expose()
+  @IsOptional()
+  @IsNumber()
+  sub_apply_level?: number;
 
   @ApiPropertyOptional({
     type: () => String,

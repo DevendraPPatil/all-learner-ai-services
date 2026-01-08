@@ -84,6 +84,8 @@ export class ScoresService {
         sub_session_id: createMilestoneRecord.sub_session_id,
         milestone_level: createMilestoneRecord.milestone_level,
         sub_milestone_level: createMilestoneRecord.sub_milestone_level,
+        apply_level: createMilestoneRecord.apply_level,
+        sub_apply_level: createMilestoneRecord.sub_apply_level,
         createdAt: new Date().toISOString().replace('Z', '+00:00'),
       };
 
@@ -3536,7 +3538,6 @@ export class ScoresService {
             existingRecord.assessmentTrackingId,
             userId
           );
-
           return updatedRecord;
         }
       }
@@ -3546,6 +3547,11 @@ export class ScoresService {
         assessmentTrackingId: createAssessmentTrackingDto.assessmentTrackingId,
         userId: userId,
         courseId: createAssessmentTrackingDto.courseId,
+        session_id: createAssessmentTrackingDto.session_id,
+        sub_session_id: createAssessmentTrackingDto.sub_session_id,
+        sub_milestone_level: createAssessmentTrackingDto.sub_milestone_level,
+        apply_level: createAssessmentTrackingDto.apply_level,
+        sub_apply_level: createAssessmentTrackingDto.sub_apply_level,
         contentId: createAssessmentTrackingDto.contentId,
         attemptId: createAssessmentTrackingDto.attemptId,
         createdOn: createAssessmentTrackingDto.createdOn,
@@ -3564,6 +3570,71 @@ export class ScoresService {
         submitedBy: createAssessmentTrackingDto.submitedBy,
       };
 
+      let sessionResult = "pass";
+      const passingThreshold = 80;
+      const scorePercentage = createAssessmentTrackingDto.totalMaxScore > 0
+          ? Math.round((createAssessmentTrackingDto.totalScore / createAssessmentTrackingDto.totalMaxScore) * 100)
+          : 0;
+      if(scorePercentage < passingThreshold){
+        sessionResult = "fail"
+      }
+     
+      // Define valid values
+      const validSubMilestoneLevels = ["F1", "F2", "F3"];
+      const validApplyLevels = ["A1", "A2", "A3"];
+      const requiredSubApplyLevel = 3; 
+
+      // Check conditions for creating milestone record
+      const subMilestoneLevel = createAssessmentTrackingDto.sub_milestone_level;
+      const applyLevel = createAssessmentTrackingDto.apply_level;
+      const subApplyLevel = createAssessmentTrackingDto.sub_apply_level;
+
+      // Milestone record is created ONLY when A3-L3 is completed 
+      if (
+        subMilestoneLevel && 
+        validSubMilestoneLevels.includes(subMilestoneLevel) &&
+        applyLevel === "A3" && 
+        subApplyLevel === requiredSubApplyLevel && 
+        createAssessmentTrackingDto.session_id &&
+        createAssessmentTrackingDto.sub_session_id
+      ) {
+        try {
+      
+          const milestoneLevel = "B";
+          let finalSubMilestoneLevel: string;
+          
+          // Determine next sub-milestone level when completing A3-L3
+          if (subMilestoneLevel === "F1") {
+            if (sessionResult === "pass") {
+              finalSubMilestoneLevel = "F2";
+            } else { 
+              finalSubMilestoneLevel = "F1";
+            }
+          } else if (subMilestoneLevel === "F2") {
+            finalSubMilestoneLevel = "F3"; 
+          } else if (subMilestoneLevel === "F3") {
+            finalSubMilestoneLevel = "F3";
+          } else {
+            finalSubMilestoneLevel = subMilestoneLevel; // Fallback
+          }
+          
+          console.log(`Creating milestone record: ${subMilestoneLevel}-${applyLevel}-L${subApplyLevel} → ${milestoneLevel}-${finalSubMilestoneLevel}`);
+          
+          await this.createMilestoneRecord({
+            user_id: userId,
+            session_id: createAssessmentTrackingDto.session_id,
+            sub_session_id: createAssessmentTrackingDto.sub_session_id,
+            milestone_level: milestoneLevel,
+            sub_milestone_level: finalSubMilestoneLevel,
+            apply_level: null,
+            sub_apply_level: null,
+          });
+          
+        } catch (milestoneError) {
+          console.error('Error creating milestone record:', milestoneError);
+        }
+      }
+      
       const createdAssessment = new this.assessmentTrackingModel(
         assessmentTrackingData,
       );

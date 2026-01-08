@@ -19,6 +19,21 @@ export class AssessmentTracking {
   courseId: string;
 
   @Prop({ type: String, required: true, index: true })
+  session_id: string;
+
+  @Prop({ type: String, required: true, index: true })
+  sub_session_id: string;
+
+  @Prop({ type: String, required: true })
+  sub_milestone_level: string;
+
+  @Prop({ type: String, required: true })
+  apply_level: string;
+
+  @Prop({ type: Number, required: true })
+  sub_apply_level: number;
+
+  @Prop({ type: String, required: true, index: true })
   contentId: string;
 
   @Prop({ type: String, required: true })

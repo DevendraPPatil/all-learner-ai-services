@@ -6347,13 +6347,17 @@ export class ScoresController {
       }
 
       if (milestoneEntry) {
+        let sub_milestone_level = "";
+        if(milestone_level == "B"){
+          sub_milestone_level = "F1"
+        }
         await this.scoresService
           .createMilestoneRecord({
             user_id: user_id,
             session_id: getSetResult.session_id,
             sub_session_id: getSetResult.sub_session_id,
             milestone_level: milestone_level,
-            sub_milestone_level: '',
+            sub_milestone_level: sub_milestone_level,
           })
           .then(async () => {
             recordData = await this.scoresService.getlatestmilestone(
@@ -6486,10 +6490,12 @@ export class ScoresController {
       
       // milestone data
       const milestone_level = recordData[0]?.milestone_level || 'm0';
+      const sub_milestone_level = recordData[0]?.sub_milestone_level
       return response.status(HttpStatus.CREATED).send({
         status: 'success',
         data: {
           milestone_level: milestone_level,
+          submilestone_level : sub_milestone_level,
           extra: {
             latest_towre_data,
             vocabulary_count: vocabulary_count,
